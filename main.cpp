@@ -12,9 +12,9 @@ std::pair<int, int> calculate(const std::vector<long> &vec, const int n) {
 }
 
 std::mutex mtx;
-std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n, int &cnt, int &max) {
+std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n, int &cnt, long &max) {
     int local_count = 0;
-    int local_max = std::numeric_limits<int>::min();
+    long local_max = std::numeric_limits<int>::min();
 
     for (const long i : vec) {
         if (i > max) local_max = i;
@@ -29,15 +29,15 @@ std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n
 }
 
 std::atomic<int> atomic_cnt{0};
-std::atomic<int> atomic_max{std::numeric_limits<int>::min()};
-void find_cas(const std::vector<long> &vec, const int n) {
+std::atomic<long> atomic_max{std::numeric_limits<long>::min()};
+void calculate_atom(const std::vector<long> &vec, const int n) {
     for (const long i : vec) {
         if (i > n) {
             int expected_cnt = atomic_cnt.load();
             while (!atomic_cnt.compare_exchange_weak(expected_cnt, expected_cnt + 1)) {}
 
-            int current_val = i;
-            int expected_max = atomic_max.load();
+            long current_val = i;
+            long expected_max = atomic_max.load();
             while (current_val > expected_max &&
                    !atomic_max.compare_exchange_weak(expected_max, current_val)) {}
         }
@@ -64,7 +64,7 @@ int main() {
     std::cout << "Time: " << elapsed.count() << "s" << std::endl;
 
     int cnt = 0;
-    int max = std::numeric_limits<int>::min();
+    long max = std::numeric_limits<long>::min();
     start = std::chrono::high_resolution_clock::now();
     result = calculate_blocking(vec, n, cnt, max);
     end = std::chrono::high_resolution_clock::now();
@@ -76,7 +76,7 @@ int main() {
 
     std::cout << "\nCAS realisation:\n";
     start = std::chrono::high_resolution_clock::now();
-    find_cas(vec, n);
+    calculate_atom(vec, n);
     end = std::chrono::high_resolution_clock::now();
     elapsed = end - start;
     std::cout << "More than " << n << " elements: " << atomic_cnt.load() << std::endl;
