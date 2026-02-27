@@ -28,6 +28,22 @@ std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n
     return std::make_pair(cnt, max);
 }
 
+std::atomic<int> atomic_cnt{0};
+std::atomic<int> atomic_max{std::numeric_limits<int>::min()};
+void find_cas(const std::vector<long> &vec, const int n) {
+    for (const long i : vec) {
+        if (i > n) {
+            int expected_cnt = atomic_cnt.load();
+            while (!atomic_cnt.compare_exchange_weak(expected_cnt, expected_cnt + 1)) {}
+
+            int current_val = i;
+            int expected_max = atomic_max.load();
+            while (current_val > expected_max &&
+                   !atomic_max.compare_exchange_weak(expected_max, current_val)) {}
+        }
+    }
+}
+
 int main() {
     int n = 500;
     std::vector<long> vec(500);
@@ -56,6 +72,15 @@ int main() {
     std::cout << "\nWith blocking:\n";
     std::cout << "More than " << n << " elements: " << result.first << std::endl;
     std::cout << "Max element: " << result.second << std::endl;
+    std::cout << "Time: " << elapsed.count() << "s" << std::endl;
+
+    std::cout << "\nCAS realisation:\n";
+    start = std::chrono::high_resolution_clock::now();
+    find_cas(vec, n);
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = end - start;
+    std::cout << "More than " << n << " elements: " << atomic_cnt.load() << std::endl;
+    std::cout << "Max element: " << atomic_max.load() << std::endl;
     std::cout << "Time: " << elapsed.count() << "s" << std::endl;
     return 0;
 }
