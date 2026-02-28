@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <random>
 #include <thread>
 
@@ -24,7 +25,7 @@ std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n
     long local_max = std::numeric_limits<int>::min();
 
     for (int i = start; i < end; i++) {
-        if (vec[i] > max) local_max = vec[i];
+        if (vec[i] > local_max) local_max = vec[i];
         if (vec[i] > n) local_count++;
     }
 
@@ -57,6 +58,9 @@ double measure_time(const std::function<void()>& func) {
 }
 
 int main() {
+    std::ofstream csv_file("test_results.csv");
+    csv_file << "size,sequential,mutex,atomic" << std::endl;
+
     for (std::vector<long> sizes = {10000, 100000, 500000, 1000000, 5000000, 10000000}; const auto size : sizes) {
         std::vector<long> vec(size);
         for (int i = 0; i < size; i++) {
@@ -69,12 +73,12 @@ int main() {
 
         int mutex_cnt = 0;
         long mutex_max = std::numeric_limits<long>::min();
-        double time_mutex = measure_time([&]() {
+        const double time_mutex = measure_time([&]() {
             std::vector<std::thread> threads;
-            int chunk = size / THREAD_COUNT;
+            const long chunk = size / THREAD_COUNT;
             for (int i = 0; i < THREAD_COUNT; ++i) {
-                int start = i * chunk;
-                int end = (i == THREAD_COUNT - 1) ? size : (i + 1) * chunk;
+                long start = i * chunk;
+                long end = (i == THREAD_COUNT - 1) ? size : (i + 1) * chunk;
                 threads.emplace_back(calculate_blocking, std::ref(vec), THRESHOLD, std::ref(mutex_cnt), std::ref(mutex_max), start, end);
             }
             for (auto& t : threads) t.join();
@@ -82,17 +86,18 @@ int main() {
 
         atomic_cnt = 0;
         atomic_max = std::numeric_limits<long>::min();
-        double time_atom = measure_time([&]() {
+        const double time_atom = measure_time([&]() {
             std::vector<std::thread> threads;
-            int chunk = size / THREAD_COUNT;
+            const long chunk = size / THREAD_COUNT;
             for (int i = 0; i < THREAD_COUNT; ++i) {
-                int start = i * chunk;
-                int end = (i == THREAD_COUNT - 1) ? size : (i + 1) * chunk;
+                long start = i * chunk;
+                long end = (i == THREAD_COUNT - 1) ? size : (i + 1) * chunk;
                 threads.emplace_back(calculate_atom, std::ref(vec), THRESHOLD, start, end);
             }
             for (auto& t : threads) t.join();
         });
 
+        csv_file << size << "," << time_seq << "," << time_mutex << "," << time_atom << std::endl;
         std::cout << size << " " << time_seq << " " << time_mutex << " " << time_atom << std::endl;
     }
     return 0;
