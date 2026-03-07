@@ -37,16 +37,22 @@ std::pair<int, int> calculate_blocking(const std::vector<long> &vec, const int n
 }
 
 void calculate_atom(const std::vector<long> &vec, const int n, const int start, const int end) {
+    int local_count = 0;
+    long local_max = std::numeric_limits<long>::min();
     for (int i = start; i < end; i++) {
-        if (vec[i] > n) {
-            int expected_cnt = atomic_cnt.load();
-            while (!atomic_cnt.compare_exchange_weak(expected_cnt, expected_cnt + 1)) {}
+        if (vec[i] > local_max) local_max = vec[i];
+        if (vec[i] > n) local_count++;
+    }
+    if (local_count > 0) {
+        int expected_cnt = atomic_cnt.load();
+        while (!atomic_cnt.compare_exchange_weak(expected_cnt, expected_cnt + local_count)) {}
+    }
 
-            long current_val = vec[i];
-            long expected_max = atomic_max.load();
-            while (current_val > expected_max &&
-                   !atomic_max.compare_exchange_weak(expected_max, current_val)) {}
-        }
+    if (local_max > std::numeric_limits<long>::min()) {
+        long expected_max = atomic_max.load();
+        while (local_max > expected_max &&
+               !atomic_max.compare_exchange_weak(expected_max, local_max)) {
+               }
     }
 }
 
